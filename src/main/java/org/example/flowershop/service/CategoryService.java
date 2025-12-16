@@ -9,9 +9,6 @@ import org.springframework.data.domain.Pageable;
 public interface CategoryService {
     Page<CategoryDto> findAllPageable(Pageable pageable);
 
-
-    CategoryDto findById(long id);
-
     CategoryDto findByName(String name);
 
     CategoryDto save(SaveCategoryRequest categoryRequest);
