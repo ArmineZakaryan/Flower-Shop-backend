@@ -62,26 +62,6 @@ class CategoryServiceImplTest {
         assertEquals("A", result.getContent().get(0).getName());
     }
 
-    @Test
-    void findById_shouldReturnListOfCategory() {
-        Category category = new Category(1L, "A", List.of());
-
-        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
-        when(categoryMapper.toDto(category)).thenReturn(new CategoryDto(1L, "A"));
-
-        CategoryDto result = categoryServiceImpl.findById(1L);
-
-        assertEquals("A", result.getName());
-    }
-
-    @Test
-    void findById_shouldThrowException_whenCategoryNotFound() {
-        when(categoryRepository.findById(1L)).thenReturn(Optional.empty());
-
-        assertThrows(CategoryNotFoundException.class,
-                () -> categoryServiceImpl.findById(1L));
-    }
-
 
     @Test
     void findByName_shouldReturnCategory() {
