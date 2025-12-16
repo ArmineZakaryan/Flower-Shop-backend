@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: FlowerShop
+  datasource:
+    url: jdbc:postgresql://localhost:5432/flower_shop
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:root}
+  liquibase:
+    change-log: classpath:/db/changelog.xml
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: j15876374@gmail.com
+    password: ahau xrub cnwl ewlg
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+jwt:
+  secret: YXNkZmYkIyNzZFNEU0RBQVNERksjQEBkc2ZqZGZrZHNqQEAjZHNmZ2ZnZmdeXiYmWipeJSQkI2RzZHMkIyVzZDQ1MDk5KUkjJCg5V0ZTSUo=
+  expiration: 600000
+server:
+  port: 8080
+
+images:
+  upload:
+    path: C:\JavaInter\flowerShopParent\images
+
+logging:
+  level:
+    root: INFO
+

@@ -1,0 +1,18 @@
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="014_alert_products_table" author="azakaryan">
+        <addColumn tableName="products">
+            <column name="orderItem" type="BIGINT"/>
+        </addColumn>
+
+        <addForeignKeyConstraint
+                baseTableName="products"
+                baseColumnNames="orderItem"
+                referencedTableName="orders"
+                referencedColumnNames="id"
+                constraintName="fk_products_orderItem"/>
+    </changeSet>
+</databaseChangeLog>
