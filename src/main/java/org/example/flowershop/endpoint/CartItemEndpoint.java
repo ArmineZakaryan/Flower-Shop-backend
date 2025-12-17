@@ -43,9 +43,7 @@ public class CartItemEndpoint {
             log.warn("User is unauthorized");
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User is not authenticated");
         }
-
         log.info("Fetching cart items for userId: {} sorted by: {}", currentUser.getId(), sortBy);
-
         if (!"productName".equals(sortBy)) {
             log.warn("Invalid sortBy value '{}'. Using default sort by 'productName'.", sortBy);
             sortBy = "productName";
@@ -57,7 +55,6 @@ public class CartItemEndpoint {
                 .collect(Collectors.toList());
 
         log.info("Returning {} cart items for userId: {}", myCartItems.size(), currentUser.getId());
-
         return ResponseEntity.ok(myCartItems);
     }
 
@@ -70,14 +67,11 @@ public class CartItemEndpoint {
         if (currentUser == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User is not authenticated");
         }
-
         CartDto cartDto = cartItemServiceImpl.addToCart(currentUser.getId(), request);
-
         var uri = uriBuilder
                 .path("/cartItem/{id}")
                 .buildAndExpand(cartDto.getId())
                 .toUri();
-
         return ResponseEntity.created(uri).body(cartDto);
     }
 
@@ -87,14 +81,10 @@ public class CartItemEndpoint {
             @AuthenticationPrincipal(expression = "user") User currentUser) {
 
         if (currentUser == null) {
-
-            log.warn("User is unauthorized", id);
-
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User is not authenticated");
         }
 
         log.info("User {} deleting cartItem {}", id, currentUser.getId());
-
         cartItemServiceImpl.remove(currentUser.getId(), id);
         log.info("CartItem {} deleted for user={}", id, currentUser.getId());
         return ResponseEntity.noContent().build();
