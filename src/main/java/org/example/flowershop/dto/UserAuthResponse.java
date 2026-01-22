@@ -14,6 +14,5 @@ public class UserAuthResponse {
     private String name;
     private String surname;
     private String username;
-    private String userId;
-
+    private Long userId;
 }

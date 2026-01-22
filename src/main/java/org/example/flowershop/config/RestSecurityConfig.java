@@ -6,6 +6,7 @@ import org.example.flowershop.security.JwtAuthenticationEntryPoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -14,6 +15,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @RequiredArgsConstructor
+@EnableMethodSecurity
 @EnableWebSecurity
 public class RestSecurityConfig {
 
@@ -31,16 +33,21 @@ public class RestSecurityConfig {
 
                         .requestMatchers(HttpMethod.POST, "/users/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/users/login").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/users").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/users/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/users/**").authenticated()
 
                         .requestMatchers(HttpMethod.GET, "/categories").permitAll()
                         .requestMatchers("/categories/**").hasAuthority("ADMIN")
 
 
-                        .requestMatchers(HttpMethod.GET, "/favorites/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/orders/**").authenticated()
-                        .requestMatchers("/cartItem/**").authenticated()
+                        .requestMatchers("/favorites/**").authenticated()
+                        .requestMatchers("/orders/**").authenticated()
+                        .requestMatchers("/cart-items/**").authenticated()
 
                         .requestMatchers(HttpMethod.GET, "/products").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/products/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/products/img/{imageName}").permitAll()
                         .requestMatchers("/products/**").hasAuthority("ADMIN")
 
                         .anyRequest().permitAll()

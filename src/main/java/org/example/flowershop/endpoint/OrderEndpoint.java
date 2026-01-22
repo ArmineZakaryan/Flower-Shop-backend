@@ -5,10 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.flowershop.dto.OrderDto;
 import org.example.flowershop.dto.SaveOrderRequest;
-import org.example.flowershop.exception.OrderNotFoundException;
-import org.example.flowershop.mapper.OrderMapper;
 import org.example.flowershop.model.entity.User;
-import org.example.flowershop.model.enums.UserType;
 import org.example.flowershop.service.OrderService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -29,74 +25,45 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("/orders")
 @Slf4j
+
 public class OrderEndpoint {
 
     private final OrderService orderService;
-    private final OrderMapper orderMapper;
 
     @GetMapping
     public ResponseEntity<List<OrderDto>> getMyOrders(
             @RequestParam(defaultValue = "orderDate") String sortBy,
             @AuthenticationPrincipal(expression = "user") User currentUser) {
 
-        if (currentUser == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User is not authenticated");
-        }
-
-        log.info("Fetching orders for userId: {} sorted by: {}", currentUser.getId(), sortBy);
-
-        List<String> allowedSort = List.of("orderDate", "price", "status");
-        if (!allowedSort.contains(sortBy)) {
-            sortBy = "orderDate";
-        }
+        log.info("GET /orders called by userId={} sortBy={}", currentUser.getId(), sortBy);
 
         List<OrderDto> myOrders = orderService
-                .getOrdersByUser(currentUser.getId(), sortBy)
-                .stream()
-                .map(orderMapper::toDto)
-                .toList();
+                .getOrdersByUser(currentUser.getId(), sortBy);
 
-        log.info("Successfully fetched {} orders for userId: {} sorted by: {}", myOrders.size(), currentUser.getId(), sortBy);
+        log.info("GET /orders returned {} orders for userId={}", myOrders.size(), currentUser.getId());
         return ResponseEntity.ok(myOrders);
     }
+
 
     @GetMapping("/{id}")
     public ResponseEntity<OrderDto> getOrder(
             @PathVariable long id,
             @AuthenticationPrincipal(expression = "user") User currentUser) {
 
-        OrderDto order;
-        try {
-            order = orderService.findById(id);
-        } catch (OrderNotFoundException ex) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage(), ex);
-        }
+        log.info("GET /orders/{} called by userId={}", id, currentUser.getId());
 
-        boolean isAdmin = currentUser.getUserType() == UserType.ADMIN;
-        boolean isOwner = order.getUserId() == currentUser.getId();
+        OrderDto order = orderService.findByIdForUser(id, currentUser);
 
-        if (!isAdmin && !isOwner) {
-            log.warn("UserId: {} is trying to access an order that does not belong to them", currentUser.getId());
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not allowed to access this order");
-        }
-
-        log.info("Successfully fetched order with id: {} for userId: {}", id, currentUser.getId());
+        log.info("GET /orders/{} success for userId={}", id, currentUser.getId());
         return ResponseEntity.ok(order);
     }
 
     @PostMapping
     public ResponseEntity<OrderDto> create(
-            @RequestBody SaveOrderRequest request,
+            @Valid @RequestBody SaveOrderRequest request,
             @AuthenticationPrincipal(expression = "user") User currentUser) {
 
-        log.info("Received request to create order for userId: {}", currentUser != null ? currentUser.getId() : "null");
-
-        if (currentUser == null) {
-            log.error("User is not authenticated. Cannot create order.");
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User is not authenticated");
-        }
-
-        log.info("Creating order for userId: {}", currentUser.getId());
+        log.info("POST /orders called by userId={}", currentUser.getId());
 
         OrderDto created = orderService.save(request, currentUser.getId());
 
@@ -112,15 +79,11 @@ public class OrderEndpoint {
             @RequestBody @Valid SaveOrderRequest request,
             @AuthenticationPrincipal(expression = "user") User currentUser) {
 
-        if (currentUser == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User is not authenticated");
-        }
-
-        log.info("User with id: {} is attempting to update order with id: {}", currentUser.getId(), id);
+        log.info("PUT /orders/{} called by userId={}", id, currentUser.getId());
 
         OrderDto updated = orderService.update(id, request, currentUser);
 
-        log.info("Successfully updated order with id: {}", id);
+        log.info("PUT /orders/{} update successfully", id);
 
         return ResponseEntity.ok(updated);
     }

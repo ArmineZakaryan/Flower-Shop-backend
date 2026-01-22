@@ -2,17 +2,14 @@ package org.example.flowershop.service;
 
 import org.example.flowershop.dto.FavoriteDto;
 import org.example.flowershop.dto.SaveFavoriteRequest;
-import org.example.flowershop.model.entity.Favorite;
 
 import java.util.List;
 
 public interface FavoriteService {
 
+    List<FavoriteDto> getFavorites(long userId, String sortBy);
 
-    List<Favorite> getFavorites(long userId, String sortBy);
-
-
-    FavoriteDto addToFavorites(long id, SaveFavoriteRequest request);
+    FavoriteDto addToFavorites(long userId, SaveFavoriteRequest request);
 
     void remove(long userId, Long id);
 

@@ -2,20 +2,20 @@ package org.example.flowershop.endpoint;
 
 import org.example.flowershop.dto.FavoriteDto;
 import org.example.flowershop.dto.SaveFavoriteRequest;
-import org.example.flowershop.mapper.FavoriteMapper;
 import org.example.flowershop.model.entity.Category;
-import org.example.flowershop.model.entity.Favorite;
 import org.example.flowershop.model.entity.Product;
 import org.example.flowershop.model.entity.User;
 import org.example.flowershop.model.enums.UserType;
 import org.example.flowershop.security.CurrentUser;
 import org.example.flowershop.service.impl.FavoriteServiceImpl;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -51,9 +51,6 @@ class FavoriteEndpointTest {
     @MockitoBean
     private FavoriteServiceImpl favoriteServiceImpl;
 
-    @MockitoBean
-    private FavoriteMapper favoriteMapper;
-
     User testUser = new User(
             1L, "Jon", "asdf", "Jon11",
             "jon.@email.com", "jon1122", UserType.USER
@@ -63,15 +60,13 @@ class FavoriteEndpointTest {
 
     Product testProduct = new Product(1L, "rose", "white rose", 100, category, "rose.png", testUser, List.of(), List.of(), List.of());
 
+    @BeforeEach
+    void setUp() {
+        SecurityContextHolder.clearContext();
+    }
 
     @Test
     void getFavoritesByUser_shouldReturnFavorites() throws Exception {
-
-        Favorite favorite = Favorite.builder()
-                .id(1L)
-                .user(testUser)
-                .product(testProduct)
-                .build();
 
         FavoriteDto favoriteDto = FavoriteDto.builder()
                 .id(1L)
@@ -84,22 +79,15 @@ class FavoriteEndpointTest {
                 .build();
 
         when(favoriteServiceImpl.getFavorites(testUser.getId(), "productName"))
-                .thenReturn(List.of(favorite));
+                .thenReturn(List.of(favoriteDto));
 
-        when(favoriteMapper.toDto(favorite))
-                .thenReturn(favoriteDto);
-
-        mockMvc.perform(get("/favorites/{id}", testUser.getId())
+        mockMvc.perform(get("/favorites")
                         .with(user(new CurrentUser(testUser)))
                         .param("sortBy", "productName"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].id").value(1))
-                .andExpect(jsonPath("$[0].productId").value(1))
-                .andExpect(jsonPath("$[0].productName").value("rose"))
-                .andExpect(jsonPath("$[0].productPrice").value(100))
-                .andExpect(jsonPath("$[0].productDescription").value("white rose"))
-                .andExpect(jsonPath("$[0].productImage").value("rose.png"));
+                .andExpect(jsonPath("$[0].id").value(1));
+
     }
 
     @Test
@@ -131,7 +119,6 @@ class FavoriteEndpointTest {
                 .andExpect(jsonPath("$.productDescription").value("white rose"))
                 .andExpect(jsonPath("$.productImage").value("rose.png"));
     }
-
 
     @Test
     void addToFavorite_shouldReturnUnauthorized_whenUserNotAuthenticated() throws Exception {

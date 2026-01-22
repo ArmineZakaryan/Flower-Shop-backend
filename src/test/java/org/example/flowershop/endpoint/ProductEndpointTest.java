@@ -22,6 +22,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
@@ -45,7 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@AutoConfigureMockMvc(addFilters = false)
+@AutoConfigureMockMvc
 class ProductEndpointTest {
 
     @Autowired
@@ -139,8 +140,9 @@ class ProductEndpointTest {
         createdProduct.setId(1);
         createdProduct.setName("Rose");
         createdProduct.setPrice(100);
+        createdProduct.setDescription("test");
 
-        when(productService.save(any(SaveProductRequest.class), eq(99L)))
+        when(productService.save(any(SaveProductRequest.class), eq(99L), any()))
                 .thenReturn(createdProduct);
 
         MockMultipartFile image = new MockMultipartFile(
@@ -162,18 +164,13 @@ class ProductEndpointTest {
                 .andExpect(jsonPath("$.name").value("Rose"));
     }
 
-
     @Test
     void create_whenUserIsNull_shouldReturnUnauthorized() throws Exception {
-
         MockMultipartFile image = new MockMultipartFile(
-                "image",
-                "test.jpg",
-                MediaType.IMAGE_JPEG_VALUE,
-                "test image".getBytes()
+                "image", "test.jpg", MediaType.IMAGE_JPEG_VALUE, "test image".getBytes()
         );
 
-        mockMvc.perform(multipart("/products")
+        mockMvc.perform(MockMvcRequestBuilders.multipart("/products")
                         .file(image)
                         .param("name", "Rose")
                         .param("description", "Red rose")
@@ -205,25 +202,18 @@ class ProductEndpointTest {
                 "fake image".getBytes()
         );
 
+        when(productService.save(any(SaveProductRequest.class), eq(99L), any()))
+                .thenThrow(new AccessDeniedException("Only admins can create products"));
+
         mockMvc.perform(MockMvcRequestBuilders.multipart("/products")
                         .file(image)
-                        .with(req -> {
-                            req.setMethod("POST");
-                            return req;
-                        }) // multipart default POST
                         .param("name", "Rose")
                         .param("price", "100")
                         .param("description", "Beautiful flower")
                         .param("categoryId", "1")
                 )
-                .andExpect(status().isForbidden())
-                .andExpect(result ->
-                        assertTrue(result.getResolvedException() instanceof AccessDeniedException))
-                .andExpect(result ->
-                        assertEquals("Only admins can create products",
-                                result.getResolvedException().getMessage()));
+                .andExpect(status().isForbidden());
     }
-
 
     @Test
     void update_whenUserIsNull_shouldReturnUnauthorized() throws Exception {
@@ -239,7 +229,7 @@ class ProductEndpointTest {
         mockMvc.perform(multipart("/products/1")
                         .file(image)
                         .with(req -> {
-                            req.setMethod("PUT");
+                            req.setMethod("PUT"); // needed for multipart PUT
                             return req;
                         })
                         .param("name", "Rose")
@@ -247,18 +237,13 @@ class ProductEndpointTest {
                         .param("price", "100")
                         .param("categoryId", "1")
                 )
-                .andExpect(status().isUnauthorized())
-                .andExpect(result ->
-                        assertTrue(result.getResolvedException() instanceof ResponseStatusException))
-                .andExpect(result ->
-                        assertEquals("User is not authenticated",
-                                ((ResponseStatusException) result.getResolvedException()).getReason()));
+                .andExpect(status().isUnauthorized());
     }
-
 
     @Test
     void update_whenUserIsAdmin_shouldReturnOk() throws Exception {
         testUser.setUserType(UserType.ADMIN);
+        testUser.setId(1L);
 
         CurrentUser currentUserDetails = new CurrentUser(testUser);
         UsernamePasswordAuthenticationToken authentication =
@@ -275,20 +260,17 @@ class ProductEndpointTest {
         request.setPrice(100);
         request.setCategoryId(1L);
 
-        ProductDto existingProduct = new ProductDto();
-        existingProduct.setId(1L);
-        existingProduct.setName("Old Name");
-        existingProduct.setDescription("Old Description");
-        existingProduct.setPrice(50);
+        CategoryDto category = new CategoryDto();
+        category.setId(request.getCategoryId());
 
         ProductDto updatedProduct = new ProductDto();
         updatedProduct.setId(1L);
         updatedProduct.setName(request.getName());
         updatedProduct.setDescription(request.getDescription());
         updatedProduct.setPrice(request.getPrice());
+        updatedProduct.setCategory(category);
 
-        when(productService.findById(1L)).thenReturn(existingProduct);
-        when(productService.update(eq(1L), any(SaveProductRequest.class), eq(testUser.getId())))
+        when(productService.update(eq(1L), any(SaveProductRequest.class), any(), eq(testUser.getId())))
                 .thenReturn(updatedProduct);
 
         MockMultipartFile image = new MockMultipartFile(
@@ -313,8 +295,10 @@ class ProductEndpointTest {
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.name").value("Rose"))
                 .andExpect(jsonPath("$.description").value("Beautiful flower"))
-                .andExpect(jsonPath("$.price").value(100));
+                .andExpect(jsonPath("$.price").value(100))
+                .andExpect(jsonPath("$.category.id").value(1));
     }
+
 
     @Test
     void delete_whenUserIsAdmin_shouldReturnNoContent() throws Exception {
@@ -335,18 +319,12 @@ class ProductEndpointTest {
     }
 
     @Test
-    void delete_whenUserIsNull_shouldReturnUnauthorized() throws Exception {
-
-        SecurityContextHolder.clearContext();
-
+    @WithAnonymousUser
+    void delete_whenUserIsAnonymous_shouldReturnUnauthorized() throws Exception {
         mockMvc.perform(delete("/products/1"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(result ->
-                        assertTrue(result.getResolvedException() instanceof ResponseStatusException))
-                .andExpect(result ->
-                        assertEquals("User is not authenticated",
-                                ((ResponseStatusException) result.getResolvedException()).getReason()));
+                .andExpect(status().isUnauthorized());
     }
+
 
     @Test
     void delete_whenUserIsNotAdmin_shouldReturnForbidden() throws Exception {
@@ -361,39 +339,32 @@ class ProductEndpointTest {
         SecurityContextHolder.getContext().setAuthentication(auth);
 
         mockMvc.perform(delete("/products/1"))
-                .andExpect(status().isForbidden())
-                .andExpect(result ->
-                        assertTrue(result.getResolvedException() instanceof AccessDeniedException))
-                .andExpect(result ->
-                        assertEquals("Only admins can delete products",
-                                result.getResolvedException().getMessage()));
+                .andExpect(status().isForbidden());
     }
 
     @Test
     void getImage_shouldReturnBytes_whenFileExists() throws Exception {
         byte[] expectedBytes = {1, 2, 3, 4};
 
-        when(productService.getImage("image.jpeg"))
-                .thenReturn(expectedBytes);
+        when(productService.getImage("image.jpeg")).thenReturn(expectedBytes);
 
-        mockMvc.perform(get("/products/img/image.jpeg"))
+        mockMvc.perform(get("/products/img/{imageName}", "image.jpeg"))
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.IMAGE_PNG))
+                .andExpect(content().contentTypeCompatibleWith("image/jpeg"))
                 .andExpect(content().bytes(expectedBytes));
     }
 
     @Test
-    void getImage_shouldThrowException_whenFileNotFound() throws Exception {
-        when(productService.getImage("rose.png"))
-                .thenThrow(new RuntimeException("Could not read image file: rose.png"));
+    void getImage_shouldReturnNotFound_whenFileDoesNotExist() throws Exception {
+        when(productService.getImage("rose.png")).thenReturn(null);
 
         mockMvc.perform(get("/products/img/{imageName}", "rose.png"))
-                .andExpect(status().isInternalServerError())
+                .andExpect(status().isNotFound())
                 .andExpect(result -> {
                     assertTrue(result.getResolvedException() instanceof ResponseStatusException);
                     ResponseStatusException ex = (ResponseStatusException) result.getResolvedException();
-                    assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, ex.getStatusCode());
-                    assertTrue(ex.getReason() != null && ex.getReason().contains("Could not read image file: rose.png"));
+                    assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+                    assertTrue(ex.getReason().contains("Image not found: rose.png"));
                 });
 
         verify(productService).getImage("rose.png");

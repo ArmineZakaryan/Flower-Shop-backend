@@ -53,27 +53,19 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<OrderDto> findAll() {
-        log.info("Finding all orders without pagination");
+    public OrderDto findByIdForUser(long id, User currentUser) {
+        log.info("Finding order id={} for userId={}", id, currentUser.getId());
 
-        List<Order> orders = orderRepository.findAll();
-        log.info("Successfully retrieved {} orders", orders.size());
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new OrderNotFoundException("Order not found"));
 
-        return orderMapper.toDtoList(orders);
-    }
+        boolean isAdmin = currentUser.getUserType() == UserType.ADMIN;
+        boolean isOwner = order.getUser().getId().equals(currentUser.getId());
 
-    @Override
-    @Transactional(readOnly = true)
-    public OrderDto findById(long id) {
-        log.info("Finding order with id: {}", id);
-
-        Order order = orderRepository
-                .findById(id)
-                .orElseThrow(() -> {
-                    log.error("Order with id: {} not found", id);
-                    return new OrderNotFoundException("Order not found with id " + id);
-                });
-        log.info("Successfully retrieved order with id: {}", id);
+        if (!isAdmin && !isOwner) {
+            log.warn("Access denied to orderId={} for userId={}", id, currentUser.getId());
+            throw new AccessDeniedException("You are not allowed to access this order");
+        }
         return orderMapper.toDto(order);
     }
 
@@ -101,23 +93,23 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Order> getOrdersByUser(long userId, String sortBy) {
-        log.info("Finding orders for userId: {} with sorting by: {}", userId, sortBy);
+    public List<OrderDto> getOrdersByUser(long userId, String sortBy) {
+        log.info("Finding orders for userId={}  sortBy={}", userId, sortBy);
 
-        List<Order> orders;
-        switch (sortBy) {
-            case "price":
-                orders = orderRepository.findAllByUserIdOrderByPriceAsc(userId);
-                break;
-            case "status":
-                orders = orderRepository.findAllByUserIdOrderByStatusAsc(userId);
-                break;
-            case "orderDate":
-            default:
-                orders = orderRepository.findAllByUserIdOrderByOrderDateDesc(userId);
-        }
-        log.info("Found {} orders for userId: {} sorted by: {}", orders.size(), userId, sortBy);
-        return orders;
+        String sort = switch (sortBy) {
+            case "price", "status", "orderDate" -> sortBy;
+            default -> "orderDate";
+        };
+
+
+        List<Order> orders = switch (sort) {
+            case "price" -> orderRepository.findAllByUserIdOrderByPriceAsc(userId);
+            case "status" -> orderRepository.findAllByUserIdOrderByStatusAsc(userId);
+            default -> orderRepository.findAllByUserIdOrderByOrderDateDesc(userId);
+        };
+
+        log.info("Found {} orders for userId={}", orders.size(), userId);
+        return orderMapper.toDtoList(orders);
     }
 
 

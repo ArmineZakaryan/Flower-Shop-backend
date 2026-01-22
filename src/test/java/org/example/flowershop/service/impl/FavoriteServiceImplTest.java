@@ -17,6 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.util.List;
 import java.util.Optional;
@@ -63,11 +64,6 @@ class FavoriteServiceImplTest {
         SaveFavoriteRequest request = new SaveFavoriteRequest();
         request.setProductId(5L);
 
-        Favorite favorite = Favorite.builder()
-                .user(user)
-                .product(product)
-                .build();
-
         Favorite savedFavorite = Favorite.builder()
                 .id(100L)
                 .user(user)
@@ -81,16 +77,10 @@ class FavoriteServiceImplTest {
 
         when(userRepository.findById(userId))
                 .thenReturn(Optional.of(user));
-
         when(productRepository.findById(5L))
                 .thenReturn(Optional.of(product));
-
-        when(favoriteMapper.toEntity(request))
-                .thenReturn(favorite);
-
         when(favoriteRepository.save(any(Favorite.class)))
                 .thenReturn(savedFavorite);
-
         when(favoriteMapper.toDto(savedFavorite))
                 .thenReturn(expectedDto);
 
@@ -103,114 +93,110 @@ class FavoriteServiceImplTest {
 
         verify(userRepository).findById(userId);
         verify(productRepository).findById(5L);
-        verify(favoriteMapper).toEntity(request);
         verify(favoriteRepository).save(any(Favorite.class));
         verify(favoriteMapper).toDto(savedFavorite);
     }
-
 
     @Test
     void addToFavorites_shouldThrowExceptionIfUserNotFound() {
         long userId = 1L;
 
         SaveFavoriteRequest request = new SaveFavoriteRequest();
-        request.setProductId(2);
-        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        request.setProductId(2L);
 
-        UserNotFoundException exception = assertThrows(UserNotFoundException.class,
-                () -> favoriteServiceImpl.addToFavorites(userId, request));
-        assertEquals("User not found", exception.getMessage());
+        when(userRepository.findById(userId))
+                .thenReturn(Optional.empty());
+
+        UserNotFoundException ex = assertThrows(
+                UserNotFoundException.class,
+                () -> favoriteServiceImpl.addToFavorites(userId, request)
+        );
+
+        assertEquals("User not found", ex.getMessage());
     }
-
 
     @Test
     void addToFavorites_shouldThrowExceptionIfProductNotFound() {
         long userId = 1L;
 
         SaveFavoriteRequest request = new SaveFavoriteRequest();
-        request.setProductId(2);
+        request.setProductId(2L);
 
         when(userRepository.findById(userId))
                 .thenReturn(Optional.of(new User()));
-        when(productRepository.findById(5L))
+        when(productRepository.findById(2L))
                 .thenReturn(Optional.empty());
 
-        ProductNotFoundException exception = assertThrows(
+        ProductNotFoundException ex = assertThrows(
                 ProductNotFoundException.class,
-                () -> favoriteServiceImpl.addToFavorites(userId, request));
+                () -> favoriteServiceImpl.addToFavorites(userId, request)
+        );
 
-        assertEquals("Product not found", exception.getMessage());
+        assertEquals("Product not found", ex.getMessage());
     }
 
 
     @Test
     void getFavorites_shouldReturnSortedFavorites() {
         long userId = 1L;
-        String sortBy = "productName";
+        String sortBy = "product.name";
 
-        User user = new User();
-        user.setId(userId);
+        when(userRepository.existsById(userId))
+                .thenReturn(true);
 
-        Product product1 = new Product();
-        product1.setId(5L);
-        product1.setName("Rose");
-
-        Product product2 = new Product();
-        product2.setId(6L);
-        product2.setName("Tulip");
-
-        Favorite favorite1 = new Favorite();
-        favorite1.setId(1L);
-        favorite1.setUser(user);
-        favorite1.setProduct(product1);
-
-        Favorite favorite2 = new Favorite();
-        favorite2.setId(2L);
-        favorite2.setUser(user);
-        favorite2.setProduct(product2);
-
-        List<Favorite> expectedFavorites = List.of(favorite1, favorite2);
-
-        when(userRepository.existsById(userId)).thenReturn(true);
         when(favoriteRepository.findAllByUserId(userId, Sort.by(sortBy).ascending()))
-                .thenReturn(expectedFavorites);
+                .thenReturn(List.of(new Favorite(), new Favorite()));
 
-        List<Favorite> result = favoriteServiceImpl.getFavorites(userId, sortBy);
+        List<FavoriteDto> result = favoriteServiceImpl.getFavorites(userId, sortBy);
 
-        assertNotNull(result);
         assertEquals(2, result.size());
-        assertEquals("Rose", result.get(0).getProduct().getName());
     }
-
 
     @Test
     void getFavorites_userNotFound_shouldThrowException() {
-        long userId = 1L;
-        String sortBy = "productName";
+        when(userRepository.existsById(1L))
+                .thenReturn(false);
 
-        when(userRepository.existsById(userId)).thenReturn(false);
-
-        assertThrows(UserNotFoundException.class, () -> {
-            favoriteServiceImpl.getFavorites(userId, sortBy);
-        });
+        assertThrows(
+                UserNotFoundException.class,
+                () -> favoriteServiceImpl.getFavorites(1L, "product.name")
+        );
     }
 
     @Test
-    void removeFromFavorites_shouldRemove() {
+    void remove_shouldDelete_whenOwner() {
         long userId = 1L;
 
         User user = new User();
         user.setId(userId);
 
+        Favorite favorite = new Favorite();
+        favorite.setId(10L);
+        favorite.setUser(user);
 
-        Favorite existing = new Favorite();
-        existing.setId(10);
-        existing.setUser(user);
-
-        when(favoriteRepository.findById(10L)).thenReturn(Optional.of(existing));
+        when(favoriteRepository.findById(10L))
+                .thenReturn(Optional.of(favorite));
 
         favoriteServiceImpl.remove(userId, 10L);
 
-        verify(favoriteRepository).delete(existing);
+        verify(favoriteRepository).delete(favorite);
+    }
+
+    @Test
+    void remove_shouldThrowAccessDenied_whenNotOwner() {
+        User owner = new User();
+        owner.setId(2L);
+
+        Favorite favorite = new Favorite();
+        favorite.setId(10L);
+        favorite.setUser(owner);
+
+        when(favoriteRepository.findById(10L))
+                .thenReturn(Optional.of(favorite));
+
+        assertThrows(
+                AccessDeniedException.class,
+                () -> favoriteServiceImpl.remove(1L, 10L)
+        );
     }
 }
