@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.flowershop.dto.FavoriteDto;
 import org.example.flowershop.dto.SaveFavoriteRequest;
-import org.example.flowershop.mapper.FavoriteMapper;
 import org.example.flowershop.security.CurrentUser;
 import org.example.flowershop.service.FavoriteService;
 import org.springframework.http.ResponseEntity;
@@ -28,7 +27,6 @@ import java.util.List;
 @Slf4j
 public class FavoriteEndpoint {
     private final FavoriteService favoriteService;
-    private final FavoriteMapper favoriteMapper;
 
     @GetMapping
     public List<FavoriteDto> getMyFavorites(
