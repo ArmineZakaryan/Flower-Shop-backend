@@ -3,6 +3,7 @@ package org.example.flowershop.endpoint;
 import org.example.flowershop.dto.CategoryDto;
 import org.example.flowershop.dto.ProductDto;
 import org.example.flowershop.dto.SaveProductRequest;
+import org.example.flowershop.exception.CategoryNotFoundException;
 import org.example.flowershop.exception.ProductNotFoundException;
 import org.example.flowershop.model.entity.User;
 import org.example.flowershop.model.enums.UserType;
@@ -38,6 +39,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -99,25 +101,25 @@ class ProductEndpointTest {
     @Test
     void testGetProduct() throws Exception {
         ProductDto dto = new ProductDto();
-        dto.setId(1);
-        dto.setName("Rose");
+        dto.setId(20);
+        dto.setName("Roses");
 
-        when(productService.findByName("Rose"))
+        when(productService.findByName("Roses"))
                 .thenReturn(dto);
 
-        mockMvc.perform(get("/products/Rose"))
+        mockMvc.perform(get("/products/by-name/Roses"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Rose"))
-                .andExpect(jsonPath("$.id").value(1));
+                .andExpect(jsonPath("$.name").value("Roses"))
+                .andExpect(jsonPath("$.id").value(20));
     }
 
     @Test
     void testGetProduct_NotFound() throws Exception {
 
-        when(productService.findByName("Rose"))
-                .thenThrow(new ProductNotFoundException("Product not found with id: 1"));
+        when(productService.findByName("Roses"))
+                .thenThrow(new ProductNotFoundException("Product not found with id: 20"));
 
-        mockMvc.perform(get("/products/Rose"))
+        mockMvc.perform(get("/products/by-name/Roses"))
                 .andExpect(status().isNotFound());
     }
 
@@ -239,20 +241,10 @@ class ProductEndpointTest {
                 )
                 .andExpect(status().isUnauthorized());
     }
-
     @Test
     void update_whenUserIsAdmin_shouldReturnOk() throws Exception {
         testUser.setUserType(UserType.ADMIN);
         testUser.setId(1L);
-
-        CurrentUser currentUserDetails = new CurrentUser(testUser);
-        UsernamePasswordAuthenticationToken authentication =
-                new UsernamePasswordAuthenticationToken(
-                        currentUserDetails,
-                        null,
-                        currentUserDetails.getAuthorities()
-                );
-        SecurityContextHolder.getContext().setAuthentication(authentication);
 
         SaveProductRequest request = new SaveProductRequest();
         request.setName("Rose");
@@ -282,6 +274,7 @@ class ProductEndpointTest {
 
         mockMvc.perform(multipart("/products/1")
                         .file(image)
+                        .with(user(new CurrentUser(testUser))) // ✅
                         .with(req -> {
                             req.setMethod("PUT");
                             return req;
@@ -298,6 +291,64 @@ class ProductEndpointTest {
                 .andExpect(jsonPath("$.price").value(100))
                 .andExpect(jsonPath("$.category.id").value(1));
     }
+//    @Test
+//    void update_whenUserIsAdmin_shouldReturnOk() throws Exception {
+//        testUser.setUserType(UserType.ADMIN);
+//        testUser.setId(1L);
+//
+//        CurrentUser currentUserDetails = new CurrentUser(testUser);
+//        UsernamePasswordAuthenticationToken authentication =
+//                new UsernamePasswordAuthenticationToken(
+//                        currentUserDetails,
+//                        null,
+//                        currentUserDetails.getAuthorities()
+//                );
+//        SecurityContextHolder.getContext().setAuthentication(authentication);
+//
+//        SaveProductRequest request = new SaveProductRequest();
+//        request.setName("Rose");
+//        request.setDescription("Beautiful flower");
+//        request.setPrice(100);
+//        request.setCategoryId(1L);
+//
+//        CategoryDto category = new CategoryDto();
+//        category.setId(request.getCategoryId());
+//
+//        ProductDto updatedProduct = new ProductDto();
+//        updatedProduct.setId(1L);
+//        updatedProduct.setName(request.getName());
+//        updatedProduct.setDescription(request.getDescription());
+//        updatedProduct.setPrice(request.getPrice());
+//        updatedProduct.setCategory(category);
+//
+//        when(productService.update(eq(1L), any(SaveProductRequest.class), any(), eq(testUser.getId())))
+//                .thenReturn(updatedProduct);
+//
+//        MockMultipartFile image = new MockMultipartFile(
+//                "image",
+//                "rose.jpg",
+//                MediaType.IMAGE_JPEG_VALUE,
+//                "fake image".getBytes()
+//        );
+//
+//        mockMvc.perform(multipart("/products/1")
+//                        .file(image)
+//                        .with(req -> {
+//                            req.setMethod("PUT");
+//                            return req;
+//                        })
+//                        .param("name", request.getName())
+//                        .param("description", request.getDescription())
+//                        .param("price", String.valueOf(request.getPrice()))
+//                        .param("categoryId", String.valueOf(request.getCategoryId()))
+//                )
+//                .andExpect(status().isOk())
+//                .andExpect(jsonPath("$.id").value(1))
+//                .andExpect(jsonPath("$.name").value("Rose"))
+//                .andExpect(jsonPath("$.description").value("Beautiful flower"))
+//                .andExpect(jsonPath("$.price").value(100))
+//                .andExpect(jsonPath("$.category.id").value(1));
+//    }
 
 
     @Test
@@ -368,5 +419,60 @@ class ProductEndpointTest {
                 });
 
         verify(productService).getImage("rose.png");
+    }
+
+    @Test
+    void getProductsByCategory_shouldReturnProducts() throws Exception {
+        String category = "Flowers";
+
+        ProductDto productDto = new ProductDto();
+        productDto.setName("Rose");
+
+        Page<ProductDto> page = new PageImpl<>(List.of(productDto));
+
+        when(productService.findByCategory(eq(category), any(Pageable.class)))
+                .thenReturn(page);
+
+        mockMvc.perform(get("/products/by-category")
+                        .param("category", category)
+                        .param("page", "0")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].name").value("Rose"));
+
+        verify(productService).findByCategory(eq(category), any(Pageable.class));
+    }
+
+    @Test
+    void getProductsByCategory_shouldReturnEmptyList() throws Exception {
+        String category = "Flowers";
+
+        Page<ProductDto> emptyPage = Page.empty();
+
+        when(productService.findByCategory(eq(category), any(Pageable.class)))
+                .thenReturn(emptyPage);
+
+        mockMvc.perform(get("/products/by-category")
+                        .param("category", category))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty());
+    }
+
+    @Test
+    void getProductsByCategory_shouldReturnBadRequest_whenCategoryMissing() throws Exception {
+        mockMvc.perform(get("/products/by-category"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getProductsByCategory_shouldReturnNotFound_whenServiceThrows() throws Exception {
+        String category = "Unknown";
+
+        when(productService.findByCategory(eq(category), any(Pageable.class)))
+                .thenThrow(new CategoryNotFoundException("Not found"));
+
+        mockMvc.perform(get("/products/by-category")
+                        .param("category", category))
+                .andExpect(status().isNotFound());
     }
 }

@@ -3,6 +3,7 @@ package org.example.flowershop.service.impl;
 import org.example.flowershop.dto.CategoryDto;
 import org.example.flowershop.dto.ProductDto;
 import org.example.flowershop.dto.SaveProductRequest;
+import org.example.flowershop.exception.CategoryNotFoundException;
 import org.example.flowershop.exception.ImageNotFoundException;
 import org.example.flowershop.exception.ProductNotFoundException;
 import org.example.flowershop.mapper.ProductMapper;
@@ -33,10 +34,13 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ProductServiceImplTest {
@@ -229,5 +233,76 @@ class ProductServiceImplTest {
             );
             assertEquals("Image not found", ex.getMessage());
         }
+    }
+
+    @Test
+    void findByCategory_shouldReturnProducts_whenCategoryExists() {
+        String categoryName = "Flowers";
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Category category = new Category();
+        category.setName(categoryName);
+
+        Product product = new Product();
+        ProductDto productDto = new ProductDto();
+
+        Page<Product> productPage = new PageImpl<>(List.of(product));
+
+        when(categoryRepository.findByNameIgnoreCase(categoryName))
+                .thenReturn(Optional.of(category));
+
+        when(productRepository.findAllByCategory(category, pageable))
+                .thenReturn(productPage);
+
+        when(productMapper.toDto(any(Product.class)))
+                .thenReturn(productDto);
+
+        Page<ProductDto> result = productServiceImpl.findByCategory(categoryName, pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getContent().size());
+        assertEquals(productDto, result.getContent().get(0));
+
+        verify(categoryRepository).findByNameIgnoreCase(categoryName);
+        verify(productRepository).findAllByCategory(category, pageable);
+        verify(productMapper).toDto(any(Product.class));
+    }
+
+    @Test
+    void findByCategory_shouldThrowException_whenCategoryNotFound() {
+        String categoryName = "Unknown";
+        Pageable pageable = PageRequest.of(0, 10);
+
+        when(categoryRepository.findByNameIgnoreCase(categoryName))
+                .thenReturn(Optional.empty());
+
+        assertThrows(CategoryNotFoundException.class, () ->
+                productServiceImpl.findByCategory(categoryName, pageable)
+        );
+
+        verify(categoryRepository).findByNameIgnoreCase(categoryName);
+        verifyNoInteractions(productRepository);
+    }
+
+    @Test
+    void findByCategory_shouldReturnEmptyPage_whenNoProducts() {
+        String categoryName = "Flowers";
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Category category = new Category();
+
+        Page<Product> emptyPage = Page.empty();
+
+        when(categoryRepository.findByNameIgnoreCase(categoryName))
+                .thenReturn(Optional.of(category));
+
+        when(productRepository.findAllByCategory(category, pageable))
+                .thenReturn(emptyPage);
+
+        Page<ProductDto> result = productServiceImpl.findByCategory(categoryName, pageable);
+
+        assertTrue(result.isEmpty());
+
+        verify(productRepository).findAllByCategory(category, pageable);
     }
 }

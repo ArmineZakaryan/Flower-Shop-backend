@@ -6,9 +6,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.flowershop.dto.OrderDto;
 import org.example.flowershop.dto.SaveOrderRequest;
 import org.example.flowershop.model.entity.User;
+import org.example.flowershop.model.enums.UserType;
 import org.example.flowershop.service.OrderService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -44,6 +48,19 @@ public class OrderEndpoint {
         return ResponseEntity.ok(myOrders);
     }
 
+    @GetMapping("/all")
+    public ResponseEntity<Page<OrderDto>> getAllOrders(
+            Pageable pageable,
+            @AuthenticationPrincipal(expression = "user") User currentUser) {
+
+        log.info("GET /orders/all called by userId={}", currentUser.getId());
+
+        if (currentUser.getUserType() != UserType.ADMIN) {
+            throw new AccessDeniedException("Only admins can see all orders");
+        }
+
+        return ResponseEntity.ok(orderService.findAll(pageable));
+    }
 
     @GetMapping("/{id}")
     public ResponseEntity<OrderDto> getOrder(

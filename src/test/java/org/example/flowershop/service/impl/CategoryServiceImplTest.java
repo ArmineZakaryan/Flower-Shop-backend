@@ -3,6 +3,7 @@ package org.example.flowershop.service.impl;
 import org.example.flowershop.dto.CategoryDto;
 import org.example.flowershop.dto.SaveCategoryRequest;
 import org.example.flowershop.exception.CategoryAlreadyExistsException;
+import org.example.flowershop.exception.CategoryHasProductsException;
 import org.example.flowershop.exception.CategoryNotFoundException;
 import org.example.flowershop.mapper.CategoryMapper;
 import org.example.flowershop.model.entity.Category;
@@ -218,8 +219,8 @@ class CategoryServiceImplTest {
         when(categoryRepository.findById(1L))
                 .thenReturn(Optional.of(category));
 
-        IllegalStateException ex = assertThrows(
-                IllegalStateException.class,
+        CategoryHasProductsException ex = assertThrows(
+                CategoryHasProductsException.class,
                 () -> categoryServiceImpl.deleteById(1L)
         );
 

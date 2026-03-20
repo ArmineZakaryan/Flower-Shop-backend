@@ -6,6 +6,7 @@ import org.springframework.security.core.authority.AuthorityUtils;
 
 @Getter
 public class CurrentUser extends org.springframework.security.core.userdetails.User {
+
     private final User user;
 
     public CurrentUser(User user) {
@@ -13,10 +14,11 @@ public class CurrentUser extends org.springframework.security.core.userdetails.U
                 user.getEmail(),
                 user.getPassword(),
                 AuthorityUtils.createAuthorityList(
-                        user.getUserType() != null ? user.getUserType().name() : "USER"
+                        user.getUserType() != null
+                                ? "ROLE_" + user.getUserType().name()
+                                : "ROLE_USER"
                 )
         );
         this.user = user;
     }
-
 }

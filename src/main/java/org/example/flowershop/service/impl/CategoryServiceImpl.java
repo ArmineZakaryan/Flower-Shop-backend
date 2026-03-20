@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.flowershop.dto.CategoryDto;
 import org.example.flowershop.dto.SaveCategoryRequest;
 import org.example.flowershop.exception.CategoryAlreadyExistsException;
+import org.example.flowershop.exception.CategoryHasProductsException;
 import org.example.flowershop.exception.CategoryNotFoundException;
 import org.example.flowershop.mapper.CategoryMapper;
 import org.example.flowershop.model.entity.Category;
@@ -110,7 +111,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         if (category.getProducts() != null && !category.getProducts().isEmpty()) {
             log.warn("Cannot delete category id={} because it has products", id);
-            throw new IllegalStateException(
+            throw new CategoryHasProductsException(
                     "Cannot delete category because it has products. Remove or reassign them first."
             );
         }

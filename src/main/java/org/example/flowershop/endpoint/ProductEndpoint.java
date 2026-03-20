@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -40,10 +41,27 @@ public class ProductEndpoint {
         return ResponseEntity.ok(productService.findAll(pageable));
     }
 
-    @GetMapping("/{name}")
+    @GetMapping("/{id}")
+    public ProductDto getProduct(@PathVariable long id) {
+        log.info("GET /products/{}", id);
+        return productService.findById(id);
+    }
+
+    @GetMapping("/by-name/{name}")
     public ResponseEntity<ProductDto> getProductByName(@PathVariable String name) {
-        log.info("GET /products/{}", name);
+        log.info("GET /products/by-name/{}", name);
         return ResponseEntity.ok(productService.findByName(name));
+    }
+
+
+    @GetMapping("/by-category")
+    public ResponseEntity<Page<ProductDto>> getProductsByCategory(
+            @RequestParam String category,
+            Pageable pageable) {
+
+        log.info("GET /products/by-category?category={}", category);
+
+        return ResponseEntity.ok(productService.findByCategory(category, pageable));
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

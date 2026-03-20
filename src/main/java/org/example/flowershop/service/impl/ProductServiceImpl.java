@@ -103,6 +103,7 @@ public class ProductServiceImpl implements ProductService {
         return productMapper.toDto(saved);
     }
 
+
     private String saveImage(MultipartFile image) {
         try {
             String imageName = UUID.randomUUID() + "_" + image.getOriginalFilename();
@@ -246,6 +247,18 @@ public class ProductServiceImpl implements ProductService {
 
         log.info("Successfully fetched {} products with pagination and sorting.", productDto.getTotalElements());
         return productDto;
+    }
+
+    @Override
+    public Page<ProductDto> findByCategory(String categoryName, Pageable pageable) {
+        Category category = categoryRepository.findByNameIgnoreCase(categoryName)
+                .orElseThrow(() -> new CategoryNotFoundException("Category not found with name " + categoryName));
+
+        Page<ProductDto> products = productRepository
+                .findAllByCategory(category, pageable)
+                .map(productMapper::toDto);
+
+        return products;
     }
 
     @Override

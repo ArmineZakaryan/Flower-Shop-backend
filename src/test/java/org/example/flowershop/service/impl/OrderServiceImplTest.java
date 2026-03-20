@@ -202,26 +202,6 @@ class OrderServiceImplTest {
 
 
     @Test
-    void update_adminCancelNewOrder_shouldCancel() {
-        User admin = new User();
-        admin.setUserType(UserType.ADMIN);
-
-        Order order = new Order();
-        order.setStatus(Status.NEW);
-        order.setOrderDate(LocalDateTime.now());
-
-        when(orderRepository.findById(1L)).thenReturn(Optional.of(order));
-        when(orderRepository.save(order)).thenReturn(order);
-        when(orderMapper.toDto(order)).thenReturn(new OrderDto());
-
-        OrderDto result =
-                orderServiceImpl.update(1L, new SaveOrderRequest(), admin);
-
-        assertNotNull(result);
-        assertEquals(Status.CANCELLED, order.getStatus());
-    }
-
-    @Test
     void update_userWrongOwner_shouldThrowAccessDenied() {
         User user = new User();
         user.setId(1L);

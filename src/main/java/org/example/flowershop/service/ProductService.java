@@ -9,6 +9,8 @@ import org.springframework.web.multipart.MultipartFile;
 public interface ProductService {
     Page<ProductDto> findAll(Pageable pageable);
 
+    Page<ProductDto> findByCategory(String categoryName, Pageable pageable);
+
     ProductDto findById(Long id);
 
     ProductDto findByName(String name);

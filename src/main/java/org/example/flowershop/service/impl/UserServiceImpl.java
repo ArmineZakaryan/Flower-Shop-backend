@@ -126,6 +126,8 @@ public class UserServiceImpl implements UserService {
                 .surname(user.getSurname())
                 .userId(user.getId())
                 .username(user.getUsername())
+                .email(user.getEmail())
+                .userType(user.getUserType())
                 .build();
     }
 

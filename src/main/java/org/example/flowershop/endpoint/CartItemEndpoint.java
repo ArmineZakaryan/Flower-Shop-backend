@@ -6,7 +6,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.flowershop.dto.CartDto;
 import org.example.flowershop.dto.SaveCartItemRequest;
 import org.example.flowershop.mapper.CartItemMapper;
+import org.example.flowershop.model.entity.CartItem;
 import org.example.flowershop.model.entity.User;
+import org.example.flowershop.repository.CartItemRepository;
+import org.example.flowershop.security.CurrentUser;
 import org.example.flowershop.service.CartItemService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -30,6 +33,7 @@ public class CartItemEndpoint {
 
     private final CartItemService cartItemService;
     private final CartItemMapper cartItemMapper;
+    private final CartItemRepository cartItemRepository;
 
     @GetMapping
     public ResponseEntity<List<CartDto>> getUserCartItems(
