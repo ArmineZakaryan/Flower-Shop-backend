@@ -35,7 +35,7 @@ public class OpenAPIConfiguration {
 
         Contact myContact = new Contact();
         myContact.setName("Armine Zakaryan");
-        myContact.setUrl("zakaryanarmine991@gmail.com");
+        myContact.setEmail("zakaryanarmine991@gmail.com");
 
         Info information = new Info()
                 .title("FlowerShop API")
@@ -43,7 +43,7 @@ public class OpenAPIConfiguration {
                 .description("FlowerShop API description")
                 .contact(myContact);
         return new OpenAPI()
-                .security(List.of(new SecurityRequirement()))
+                .security(List.of(new SecurityRequirement().addList("bearerAuth")))
                 .info(information)
                 .servers(List.of(server));
     }

@@ -4,7 +4,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
@@ -18,7 +17,7 @@ public class MailConfig {
 
 
     @Bean
-    public TemplateEngine emailTemplateEngine() {
+    public SpringTemplateEngine emailTemplateEngine() {
         log.info("Setting up email template engine");
 
         final SpringTemplateEngine templateEngine = new SpringTemplateEngine();
@@ -34,7 +33,7 @@ public class MailConfig {
         log.info("Setting up text template resolver");
 
         final ClassLoaderTemplateResolver templateResolver = new ClassLoaderTemplateResolver();
-        templateResolver.setOrder(Integer.valueOf(1));
+        templateResolver.setOrder(1);
         templateResolver.setResolvablePatterns(Collections.singleton("text/*"));
         templateResolver.setPrefix("/mail/");
         templateResolver.setSuffix(".txt");
@@ -50,7 +49,7 @@ public class MailConfig {
         log.info("Setting up HTML template resolver");
 
         final ClassLoaderTemplateResolver templateResolver = new ClassLoaderTemplateResolver();
-        templateResolver.setOrder(Integer.valueOf(2));
+        templateResolver.setOrder(2);
         templateResolver.setResolvablePatterns(Collections.singleton("html/*"));
         templateResolver.setPrefix("/mail/");
         templateResolver.setSuffix(".html");
@@ -66,7 +65,7 @@ public class MailConfig {
         log.info("Setting up string template resolver");
 
         final ClassLoaderTemplateResolver templateResolver = new ClassLoaderTemplateResolver();
-        templateResolver.setOrder(Integer.valueOf(3));
+        templateResolver.setOrder(3);
         templateResolver.setTemplateMode("HTML5");
         templateResolver.setCacheable(false);
 

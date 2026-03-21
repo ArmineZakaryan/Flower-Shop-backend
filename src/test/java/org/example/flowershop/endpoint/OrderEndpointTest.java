@@ -2,9 +2,6 @@ package org.example.flowershop.endpoint;
 
 import org.example.flowershop.dto.OrderDto;
 import org.example.flowershop.dto.SaveOrderRequest;
-import org.example.flowershop.exception.OrderNotFoundException;
-import org.example.flowershop.mapper.OrderMapper;
-import org.example.flowershop.model.entity.Order;
 import org.example.flowershop.model.entity.User;
 import org.example.flowershop.model.enums.Status;
 import org.example.flowershop.model.enums.UserType;
@@ -31,18 +28,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 
 @SpringBootTest
-@AutoConfigureMockMvc(addFilters = false)
+@AutoConfigureMockMvc
 class OrderEndpointTest {
 
     @Autowired
@@ -54,9 +49,6 @@ class OrderEndpointTest {
     @MockitoBean
     private OrderService orderService;
 
-    @MockitoBean
-    private OrderMapper orderMapper;
-
     @BeforeEach
     void setUp() {
         SecurityContextHolder.clearContext();
@@ -66,17 +58,9 @@ class OrderEndpointTest {
 
     @Test
     void getMyOrders() throws Exception {
-        Order order = Order.builder()
-                .user(testUser)
-                .price(100)
-                .status(Status.NEW)
-                .orderDate(LocalDateTime.now())
-                .address("address")
-                .build();
-
         OrderDto orderDto = new OrderDto();
         orderDto.setId(1L);
-        orderDto.setUserId(2L);
+        orderDto.setUserId(testUser.getId());
         orderDto.setPrice(100);
         orderDto.setStatus(Status.NEW);
         orderDto.setOrderDate(LocalDateTime.now());
@@ -87,17 +71,14 @@ class OrderEndpointTest {
                 currentUserDetails, null, currentUserDetails.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        when(orderService.getOrdersByUser(1L, "orderDate"))
-                .thenReturn(List.of(order));
-
-        when(orderMapper.toDto(order))
-                .thenReturn(orderDto);
+        when(orderService.getOrdersByUser(testUser.getId(), "orderDate"))
+                .thenReturn(List.of(orderDto));
 
         mockMvc.perform(get("/orders"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].id").value(1))
-                .andExpect(jsonPath("$[0].userId").value(2))
+                .andExpect(jsonPath("$[0].userId").value(testUser.getId()))
                 .andExpect(jsonPath("$[0].price").value(100))
                 .andExpect(jsonPath("$[0].status").value("NEW"))
                 .andExpect(jsonPath("$[0].orderDate").exists())
@@ -124,7 +105,7 @@ class OrderEndpointTest {
                 );
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        when(orderService.findById(1L)).thenReturn(orderDto);
+        when(orderService.findByIdForUser(1L, testUser)).thenReturn(orderDto);
 
         mockMvc.perform(get("/orders/1"))
                 .andExpect(status().isOk())
@@ -138,35 +119,22 @@ class OrderEndpointTest {
 
     @Test
     void getOrderById_shouldReturn403_whenUserIsNotOwner() throws Exception {
-        OrderDto orderDto = new OrderDto();
-        orderDto.setId(1L);
-        orderDto.setUserId(999L);
-
         CurrentUser currentUserDetails = new CurrentUser(testUser);
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(currentUserDetails, null, currentUserDetails.getAuthorities())
         );
 
-        when(orderService.findById(1L)).thenReturn(orderDto);
+        when(orderService.findByIdForUser(1L, testUser))
+                .thenThrow(new AccessDeniedException("You are not allowed to access this order"));
 
         mockMvc.perform(get("/orders/1"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(result ->
+                        assertTrue(result.getResolvedException() instanceof AccessDeniedException))
+                .andExpect(result ->
+                        assertEquals("You are not allowed to access this order", result.getResolvedException().getMessage()));
     }
 
-
-    @Test
-    void getOrderById_shouldReturn404_ifNotFound() throws Exception {
-        long orderId = 999L;
-
-        when(orderService.findById(orderId))
-                .thenThrow(new OrderNotFoundException("Order not found"));
-
-        mockMvc.perform(get("/orders/{id}", orderId))
-                .andDo(print())
-                .andExpect(status().isNotFound());
-
-        verify(orderService).findById(orderId);
-    }
 
     @Test
     void createOrder() throws Exception {

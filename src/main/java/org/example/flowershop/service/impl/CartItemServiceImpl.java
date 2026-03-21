@@ -6,7 +6,6 @@ import org.example.flowershop.dto.CartDto;
 import org.example.flowershop.dto.SaveCartItemRequest;
 import org.example.flowershop.exception.CartItemNotFoundException;
 import org.example.flowershop.exception.ProductNotFoundException;
-import org.example.flowershop.exception.UserNotFoundException;
 import org.example.flowershop.mapper.CartItemMapper;
 import org.example.flowershop.model.entity.CartItem;
 import org.example.flowershop.model.entity.Product;
@@ -16,7 +15,6 @@ import org.example.flowershop.repository.ProductRepository;
 import org.example.flowershop.repository.UserRepository;
 import org.example.flowershop.service.CartItemService;
 import org.springframework.data.domain.Sort;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,15 +33,23 @@ public class CartItemServiceImpl implements CartItemService {
 
     @Override
     public List<CartItem> getCartByUser(long userId, String sortBy) {
-        log.info("Finding cartItems for userId: {} with sorting by: {}", userId, sortBy);
+        log.info("Finding cart items for userId: {} with sorting by: {}", userId, sortBy);
 
-        if (!"productName".equals(sortBy)) {
-            log.warn("Invalid sortBy value '{}'. Using default sort by 'productName'.", sortBy);
-        }
+        Sort sort = resolveSort(sortBy);
 
-        Sort sorting = Sort.by("product.name").ascending();
+        return cartItemRepository.findAllByUserId(userId, sort);
+    }
 
-        return cartItemRepository.findAllByUserId(userId, sorting);
+    private Sort resolveSort(String sortBy) {
+        return switch (sortBy) {
+            case "productName" -> Sort.by("product.name").ascending();
+            case "price" -> Sort.by("product.price").ascending();
+            case "createdAt" -> Sort.by("createdAt").descending();
+            default -> {
+                log.warn("Invalid sortBy '{}', using default 'productName'", sortBy);
+                yield Sort.by("product.name").ascending();
+            }
+        };
     }
 
 
@@ -55,8 +61,7 @@ public class CartItemServiceImpl implements CartItemService {
                 request.getProductId(),
                 userId);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
+        User user = userRepository.getReferenceById(userId);
 
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ProductNotFoundException("Product not found"));
@@ -76,18 +81,13 @@ public class CartItemServiceImpl implements CartItemService {
 
         log.info("Request to remove cartItem={} for user={}", cartItemId, userId);
 
-        CartItem cartItem = cartItemRepository.findById(cartItemId)
+        CartItem cartItem = cartItemRepository.findByIdAndUserId(cartItemId, userId)
                 .orElseThrow(() -> {
-                    log.error("CartItem {} not found for user={}", cartItemId, userId);
+                    log.warn("Cart item {} not found or not owned by user={}", cartItemId, userId);
                     return new CartItemNotFoundException("Cart item not found");
                 });
 
-        if (cartItem.getUser().getId() != userId) {
-            log.error("User {} attempted to delete cartItem {} belonging to another user", userId, cartItemId);
-            throw new AccessDeniedException("You cannot delete another user's cart item");
-
-        }
         cartItemRepository.delete(cartItem);
-        log.info("Removed cartItem={} for user={}", cartItemId, userId);
+        log.info("Removed cart item = {} for user={}", cartItemId, userId);
     }
 }

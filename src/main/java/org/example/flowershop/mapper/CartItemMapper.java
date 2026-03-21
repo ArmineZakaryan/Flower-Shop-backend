@@ -9,7 +9,7 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface CartItemMapper {
 
-    @Mapping(source = "user.id", target = "id")
+    @Mapping(source = "id", target = "id")
     @Mapping(source = "product.id", target = "productId")
     @Mapping(source = "product.name", target = "productName")
     @Mapping(source = "product.price", target = "productPrice")

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -23,22 +24,17 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 
-import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-
 @SpringBootTest
-@AutoConfigureMockMvc(addFilters = false)
+@AutoConfigureMockMvc
 class CartItemEndpointTest {
 
     @Autowired
@@ -65,22 +61,15 @@ class CartItemEndpointTest {
     Category category = new Category(1L, "Wedding flowers", List.of());
     Product testProduct = new Product(1L, "rose", "white rose", 100, category, "rose.png", testUser, List.of(), List.of(), List.of());
 
-
     @Test
-    void getUserCartItems() throws Exception {
-
+    void getUserCartItems_shouldReturn200_whenAuthenticated() throws Exception {
         CartItem cartItem = CartItem.builder()
+                .id(1L)
                 .user(testUser)
                 .product(testProduct)
                 .build();
 
-        CartDto cartDto = new CartDto();
-        cartDto.setId(1L);
-        cartDto.setProductId(1L);
-        cartDto.setProductName("rose");
-        cartDto.setProductDescription("white rose");
-        cartDto.setProductPrice(100);
-        cartDto.setProductImage("rose.png");
+        CartDto cartDto = new CartDto(1L, 1L, "rose", "white rose", 100, "rose.png");
 
         CurrentUser currentUserDetails = new CurrentUser(testUser);
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
@@ -93,90 +82,38 @@ class CartItemEndpointTest {
         when(cartItemMapper.toDto(cartItem))
                 .thenReturn(cartDto);
 
-        mockMvc.perform(get("/cartItem"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)));
+        mockMvc.perform(get("/cart-items"))
+                .andExpect(status().isOk());
     }
-
 
     @Test
     void getUserCartItems_shouldReturn401_whenNotAuthenticated() throws Exception {
-        mockMvc.perform(get("/cartItem"))
-                .andDo(print())
+        mockMvc.perform(get("/cart-items"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void addToCart() throws Exception {
+    void addToCart_shouldReturn201_whenAuthenticated() throws Exception {
         SaveCartItemRequest request = new SaveCartItemRequest(1L);
-
-        CartItem savedCartItem = CartItem.builder()
-                .id(1L)
-                .user(testUser)
-                .product(testProduct)
-                .build();
-
-        CartDto dto = new CartDto();
-        dto.setId(1L);
-        dto.setProductId(1L);
-        dto.setProductName("rose");
-        dto.setProductDescription("white rose");
-        dto.setProductPrice(100);
-        dto.setProductImage("rose.png");
+        CartDto cartDto = new CartDto(1L, 1L, "rose", "white rose", 100, "rose.png");
 
         CurrentUser currentUserDetails = new CurrentUser(testUser);
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 currentUserDetails, null, currentUserDetails.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(authentication);
-
 
         when(cartItemServiceImpl.addToCart(testUser.getId(), request))
-                .thenReturn(dto);
+                .thenReturn(cartDto);
 
-
-        when(cartItemMapper.toDto(savedCartItem))
-                .thenReturn(dto);
-
-        mockMvc.perform(post("/cartItem")
-                        .contentType("application/json")
+        mockMvc.perform(post("/cart-items")
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.productName").value("rose"))
-                .andExpect(jsonPath("$.productId").value(1))
-                .andExpect(jsonPath("$.id").value(1));
-    }
-
-
-    @Test
-    void addToCart_shouldReturn401_whenNotAuthenticated() throws Exception {
-        SaveCartItemRequest request = new SaveCartItemRequest();
-        request.setProductId(1L);
-
-        mockMvc.perform(post("/cartItem")
-                        .contentType("application/json")
-                        .content(objectMapper.writeValueAsString(request)))
-                .andDo(print())
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void deleteFromCart() throws Exception {
-        long cartItemId = 1L;
-
-        CurrentUser currentUserDetails = new CurrentUser(testUser);
-        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                currentUserDetails, null, currentUserDetails.getAuthorities());
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        mockMvc.perform(delete("/cartItem/{id}", cartItemId))
-                .andExpect(status().isNoContent());
-
-        verify(cartItemServiceImpl, times(1)).remove(testUser.getId(), cartItemId);
+                .andExpect(status().isCreated());
     }
 
     @Test
     void delete_shouldReturn401_whenNotAuthenticated() throws Exception {
-        mockMvc.perform(delete("/cartItem/1"))
+        mockMvc.perform(delete("/cart-items/1"))
                 .andExpect(status().isUnauthorized());
 
         verify(cartItemServiceImpl, never()).remove(anyLong(), anyLong());

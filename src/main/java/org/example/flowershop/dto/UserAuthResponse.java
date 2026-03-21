@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.example.flowershop.model.enums.UserType;
 
 @Data
 @AllArgsConstructor
@@ -14,6 +15,7 @@ public class UserAuthResponse {
     private String name;
     private String surname;
     private String username;
-    private String userId;
-
+    private String email;
+    private UserType userType;
+    private Long userId;
 }

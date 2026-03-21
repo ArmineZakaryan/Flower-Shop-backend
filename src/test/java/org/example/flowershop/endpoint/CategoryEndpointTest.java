@@ -2,6 +2,7 @@ package org.example.flowershop.endpoint;
 
 import org.example.flowershop.dto.CategoryDto;
 import org.example.flowershop.dto.SaveCategoryRequest;
+import org.example.flowershop.exception.CategoryAlreadyExistsException;
 import org.example.flowershop.exception.CategoryNotFoundException;
 import org.example.flowershop.model.entity.User;
 import org.example.flowershop.model.enums.UserType;
@@ -16,7 +17,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -38,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@AutoConfigureMockMvc(addFilters = false)
+@AutoConfigureMockMvc
 class CategoryEndpointTest {
 
     @Autowired
@@ -64,7 +67,7 @@ class CategoryEndpointTest {
 
         Page<CategoryDto> page = new PageImpl<>(List.of(categoryDto));
 
-        when(categoryService.findAllPageable(any(Pageable.class)))
+        when(categoryService.findAll(any(Pageable.class)))
                 .thenReturn(page);
 
         mockMvc.perform(get("/categories")
@@ -80,6 +83,7 @@ class CategoryEndpointTest {
 
 
     @Test
+    @WithMockUser(authorities = {"ADMIN", "ROLE_ADMIN"})
     void getCategoryByName() throws Exception {
         String categoryName = "Wedding flowers";
 
@@ -98,6 +102,7 @@ class CategoryEndpointTest {
 
 
     @Test
+    @WithMockUser(authorities = {"ADMIN", "ROLE_ADMIN"})
     void getCategories_shouldReturn404_whenNotFound() throws Exception {
         String categoryName = "NonExistentCategory";
 
@@ -122,7 +127,10 @@ class CategoryEndpointTest {
 
         CurrentUser currentUserDetails = new CurrentUser(adminUser);
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                currentUserDetails, null, currentUserDetails.getAuthorities());
+                currentUserDetails, null, List.of(
+                new SimpleGrantedAuthority("ADMIN"),
+                new SimpleGrantedAuthority("ROLE_ADMIN")
+        ));
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         when(categoryService.save(any(SaveCategoryRequest.class)))
@@ -145,11 +153,14 @@ class CategoryEndpointTest {
 
         CurrentUser currentUserDetails = new CurrentUser(adminUser);
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                currentUserDetails, null, currentUserDetails.getAuthorities());
+                currentUserDetails, null, List.of(
+                new SimpleGrantedAuthority("ADMIN"),
+                new SimpleGrantedAuthority("ROLE_ADMIN")
+        ));
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         when(categoryService.save(any(SaveCategoryRequest.class)))
-                .thenThrow(new RuntimeException("Category already exists"));
+                .thenThrow(new CategoryAlreadyExistsException("Category with name " + request.getName() + " already exists"));
 
         mockMvc.perform(post("/categories")
                         .contentType("application/json")
@@ -171,7 +182,10 @@ class CategoryEndpointTest {
 
         CurrentUser currentUserDetails = new CurrentUser(adminUser);
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                currentUserDetails, null, currentUserDetails.getAuthorities());
+                currentUserDetails, null, List.of(
+                new SimpleGrantedAuthority("ADMIN"),
+                new SimpleGrantedAuthority("ROLE_ADMIN")
+        ));
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         when(categoryService.update(2L, request))
@@ -187,14 +201,9 @@ class CategoryEndpointTest {
 
 
     @Test
+    @WithMockUser(authorities = {"ADMIN", "ROLE_ADMIN"})
     void deleteCategory() throws Exception {
-        User adminUser = new User(1L, "Admin", "password", "admin", "admin@email.com", "admin123", UserType.ADMIN);
         long categoryId = 2L;
-
-        CurrentUser currentUserDetails = new CurrentUser(adminUser);
-        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                currentUserDetails, null, currentUserDetails.getAuthorities());
-        SecurityContextHolder.getContext().setAuthentication(authentication);
 
         mockMvc.perform(delete("/categories/{id}", categoryId))
                 .andExpect(status().isNoContent());
@@ -209,7 +218,10 @@ class CategoryEndpointTest {
 
         CurrentUser currentUserDetails = new CurrentUser(adminUser);
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                currentUserDetails, null, currentUserDetails.getAuthorities());
+                currentUserDetails, null, List.of(
+                new SimpleGrantedAuthority("ADMIN"),
+                new SimpleGrantedAuthority("ROLE_ADMIN")
+        ));
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         doThrow(new CategoryNotFoundException("Category not found with " + categoryId + " id"))

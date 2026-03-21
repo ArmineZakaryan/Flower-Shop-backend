@@ -1,25 +1,39 @@
 package org.example.flowershop.service.impl;
 
 import org.example.flowershop.dto.LoginUserRequest;
+import org.example.flowershop.dto.SaveUserRequest;
 import org.example.flowershop.dto.UpdateUserRequest;
+import org.example.flowershop.dto.UserAuthResponse;
 import org.example.flowershop.dto.UserDto;
 import org.example.flowershop.exception.EmailAlreadyExistsException;
+import org.example.flowershop.exception.UserNotFoundException;
+import org.example.flowershop.exception.UsernameAlreadyExistsException;
 import org.example.flowershop.mapper.UserMapper;
 import org.example.flowershop.model.entity.User;
+import org.example.flowershop.model.enums.UserType;
+import org.example.flowershop.repository.CartItemRepository;
+import org.example.flowershop.repository.FavoriteRepository;
+import org.example.flowershop.repository.OrderRepository;
 import org.example.flowershop.repository.UserRepository;
 import org.example.flowershop.service.MailService;
+import org.example.flowershop.util.JwtTokenUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -33,6 +47,15 @@ class UserServiceImplTest {
     private UserRepository userRepository;
 
     @Mock
+    private OrderRepository orderRepository;
+
+    @Mock
+    private FavoriteRepository favoriteRepository;
+
+    @Mock
+    private CartItemRepository cartItemRepository;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @Mock
@@ -41,125 +64,215 @@ class UserServiceImplTest {
     @Mock
     private MailService mailService;
 
+    @Mock
+    private JwtTokenUtil jwtTokenUtil;
+
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
     }
 
     @Test
-    void updateUser_shouldUpdateUser() {
-        long id = 1;
-        UpdateUserRequest updateUserRequest = new UpdateUserRequest();
-        updateUserRequest.setUsername("newUsername");
-        updateUserRequest.setEmail("new@email.com");
-
-        User newUser = new User();
-        newUser.setId(id);
-        newUser.setUsername("username");
-        newUser.setEmail("user@email.com");
-
-        User updateUser = new User();
-        updateUser.setId(id);
-        updateUser.setUsername("newUsername");
-        updateUser.setEmail("new@email.com");
-
-        UserDto userDto = new UserDto();
-        userDto.setUsername("newUsername");
-        userDto.setEmail("new@email.com");
-
-        when(userRepository.findById(id)).thenReturn(Optional.of(newUser));
-        when(userRepository.save(newUser)).thenReturn(updateUser);
-        when(userMapper.toDto(updateUser)).thenReturn(userDto);
-
-        UserDto updatedUser = userServiceImpl.updateUser(id, updateUserRequest);
-
-        assertEquals("newUsername", updatedUser.getUsername());
-        assertEquals("new@email.com", updatedUser.getEmail());
-    }
-
-    @Test
-    void registerUser_shouldEncodePassword() {
-        User requestUser = new User();
-        requestUser.setEmail("user@email.com");
-        requestUser.setPassword("password");
-
-        User savedUser = new User();
-        savedUser.setEmail("user@email.com");
-        savedUser.setPassword("encodedPassword");
-
-        when(userRepository.findByEmail(requestUser.getEmail())).thenReturn(Optional.empty());
-        when(passwordEncoder.encode("password")).thenReturn("encodedPassword");
-        when(userRepository.save(any(User.class))).thenReturn(savedUser);
-
-        User result = userServiceImpl.registerUser(requestUser);
-
-        assertEquals("encodedPassword", result.getPassword());
-        verify(mailService).sendWelcomeMail(savedUser);
-    }
-
-    @Test
-    void registerUser_shouldThrowException_WhenEmailAlreadyExists() {
-        User requestUser = new User();
-        requestUser.setEmail("user@email.com");
-
-        when(userRepository.findByEmail("user@email.com")).thenReturn(Optional.of(new User()));
-
-        EmailAlreadyExistsException exception = assertThrows(EmailAlreadyExistsException.class,
-                () -> userServiceImpl.registerUser(requestUser));
-        assertEquals("Email already exists!", exception.getMessage());
-    }
-
-    @Test
-    void login_shouldReturnUser() {
-        LoginUserRequest request = new LoginUserRequest();
-        request.setEmail("user@email.com");
+    void registerUser_success() {
+        SaveUserRequest request = new SaveUserRequest();
+        request.setEmail("user@mail.com");
+        request.setUsername("user");
         request.setPassword("password");
 
-        User savedUser = new User();
-        savedUser.setEmail("user@email.com");
-        savedUser.setPassword("encodedPassword");
-
-        when(userRepository.findByEmail("user@email.com")).thenReturn(Optional.of(savedUser));
-        when(passwordEncoder.matches("password", "encodedPassword")).thenReturn(true);
-
-        User result = userServiceImpl.login(request);
-        assertEquals(savedUser, result);
-    }
-
-    @Test
-    void login_shouldThrowException() {
-        LoginUserRequest request = new LoginUserRequest();
-        request.setEmail("user@email.com");
-        request.setPassword("password");
-        when(userRepository.findByEmail("user@email.com")).thenReturn(Optional.empty());
-
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> userServiceImpl.login(request));
-        assertEquals("Invalid email or password", exception.getMessage());
-    }
-
-    @Test
-    void save_shouldSaveUser() {
         User user = new User();
-        user.setEmail("user@email.com");
+        user.setId(1L);
+        user.setEmail("user@mail.com");
 
+        UserDto dto = new UserDto();
+
+        when(userRepository.findByEmail("user@mail.com")).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("user")).thenReturn(Optional.empty());
+        when(userMapper.toEntity(request)).thenReturn(user);
+        when(passwordEncoder.encode("password")).thenReturn("encoded");
         when(userRepository.save(user)).thenReturn(user);
-        User result = userServiceImpl.save(user);
+        when(userMapper.toDto(user)).thenReturn(dto);
 
-        verify(mailService).sendMail("user@email.com", "Welcome", "You have successfully registered");
-        verify(userRepository).save(user);
-        assertEquals(user, result);
+        UserDto result = userServiceImpl.registerUser(request);
+
+        assertNotNull(result);
+        verify(mailService).sendWelcomeMail(user);
     }
 
     @Test
-    void findByEmail_shouldReturnUser() {
-        String email = "user@email.com";
+    void registerUser_emailAlreadyExists() {
+        SaveUserRequest request = new SaveUserRequest();
+        request.setEmail("user@mail.com");
+        request.setUsername("user");
+        request.setPassword("password123");
+
+        when(userRepository.findByEmail("user@mail.com"))
+                .thenReturn(Optional.of(new User()));
+
+        assertThrows(
+                EmailAlreadyExistsException.class,
+                () -> userServiceImpl.registerUser(request)
+        );
+    }
+
+    @Test
+    void registerUser_usernameAlreadyExists() {
+        SaveUserRequest request = new SaveUserRequest();
+        request.setEmail("user@mail.com");
+        request.setUsername("user");
+        request.setPassword("password123");
+
+        when(userRepository.findByEmail("user@mail.com")).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("user"))
+                .thenReturn(Optional.of(new User()));
+
+        assertThrows(
+                UsernameAlreadyExistsException.class,
+                () -> userServiceImpl.registerUser(request)
+        );
+    }
+
+    @Test
+    void updateUser_success() {
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setUsername("newUsername");
+
         User user = new User();
-        user.setEmail(email);
+        user.setId(1L);
 
-        when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+        UserDto dto = new UserDto();
+        dto.setUsername("newUsername");
 
-        Optional<User> result = userServiceImpl.findByEmail(email);
-        assertTrue(result.isPresent());
-        assertEquals(email, result.get().getEmail());
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userMapper.toDto(user)).thenReturn(dto);
+
+        UserDto result = userServiceImpl.updateUser(1L, request);
+
+        assertEquals("newUsername", result.getUsername());
+    }
+
+    @Test
+    void updateUser_userNotFound() {
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+
+        assertThrows(
+                UserNotFoundException.class,
+                () -> userServiceImpl.updateUser(1L, new UpdateUserRequest())
+        );
+    }
+
+
+    @Test
+    void login_success() {
+        LoginUserRequest request = new LoginUserRequest();
+        request.setEmail("user@mail.com");
+        request.setPassword("password");
+
+        User user = new User();
+        user.setId(1L);
+        user.setEmail("user@mail.com");
+        user.setPassword("encoded");
+
+        when(userRepository.findByEmail("user@mail.com"))
+                .thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("password", "encoded"))
+                .thenReturn(true);
+        when(jwtTokenUtil.generateToken("user@mail.com"))
+                .thenReturn("token");
+
+        UserAuthResponse response = userServiceImpl.login(request);
+
+        assertEquals("token", response.getToken());
+        assertEquals(1L, response.getUserId());
+    }
+
+    @Test
+    void login_wrongPassword() {
+        LoginUserRequest request = new LoginUserRequest();
+        request.setEmail("user@mail.com");
+        request.setPassword("wrong");
+
+        User user = new User();
+        user.setPassword("encoded");
+
+        when(userRepository.findByEmail("user@mail.com"))
+                .thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong", "encoded"))
+                .thenReturn(false);
+
+        assertThrows(
+                BadCredentialsException.class,
+                () -> userServiceImpl.login(request)
+        );
+    }
+
+
+    @Test
+    void getAllUsers_validSort() {
+        User user = new User();
+
+        when(userRepository.findAll(any(Sort.class)))
+                .thenReturn(List.of(user));
+        when(userMapper.toDto(user))
+                .thenReturn(new UserDto());
+
+        List<UserDto> result = userServiceImpl.getAllUsers("username");
+
+        assertEquals(1, result.size());
+    }
+
+
+    @Test
+    void delete_selfAllowed() {
+        User user = new User();
+        user.setId(1L);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(orderRepository.existsByUserId(1L)).thenReturn(false);
+        when(favoriteRepository.existsByUserId(1L)).thenReturn(false);
+        when(cartItemRepository.existsByUserId(1L)).thenReturn(false);
+
+        assertDoesNotThrow(() ->
+                userServiceImpl.delete(1L, user)
+        );
+
+        verify(userRepository).delete(user);
+    }
+
+    @Test
+    void delete_otherUser_byAdmin() {
+        User admin = new User();
+        admin.setId(1L);
+        admin.setUserType(UserType.ADMIN);
+
+        User user = new User();
+        user.setId(2L);
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+        when(orderRepository.existsByUserId(2L)).thenReturn(false);
+        when(favoriteRepository.existsByUserId(2L)).thenReturn(false);
+        when(cartItemRepository.existsByUserId(2L)).thenReturn(false);
+
+        assertDoesNotThrow(() ->
+                userServiceImpl.delete(2L, admin)
+        );
+
+        verify(userRepository).delete(user);
+    }
+
+    @Test
+    void delete_otherUser_byNonAdmin_shouldFail() {
+        User current = new User();
+        current.setId(1L);
+        current.setUserType(UserType.USER);
+
+        User user = new User();
+        user.setId(2L);
+
+        when(userRepository.findById(2L)).thenReturn(Optional.of(user));
+
+        assertThrows(
+                AccessDeniedException.class,
+                () -> userServiceImpl.delete(2L, current)
+        );
     }
 }

@@ -2,9 +2,12 @@ package org.example.flowershop.service.impl;
 
 import org.example.flowershop.dto.CategoryDto;
 import org.example.flowershop.dto.SaveCategoryRequest;
+import org.example.flowershop.exception.CategoryAlreadyExistsException;
+import org.example.flowershop.exception.CategoryHasProductsException;
 import org.example.flowershop.exception.CategoryNotFoundException;
 import org.example.flowershop.mapper.CategoryMapper;
 import org.example.flowershop.model.entity.Category;
+import org.example.flowershop.model.entity.Product;
 import org.example.flowershop.repository.CategoryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,7 +25,8 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -43,137 +47,201 @@ class CategoryServiceImplTest {
     }
 
     @Test
-    void findAllPageable_shouldReturnPageOfCategory() {
+    void findAll_shouldReturnPageOfCategories() {
         Pageable pageable = PageRequest.of(0, 10);
-        List<Category> categories = List.of(new Category(1L, "A", List.of()),
-                new Category(2L, "B", List.of()));
 
-        Page<Category> page = new PageImpl<>(categories);
+        Category c1 = new Category(1L, "A", List.of());
+        Category c2 = new Category(2L, "B", List.of());
+
+        Page<Category> page = new PageImpl<>(List.of(c1, c2));
 
         when(categoryRepository.findAll(pageable)).thenReturn(page);
-        when(categoryMapper.toDto(any(Category.class)))
-                .thenAnswer(inv -> {
-                    Category c = inv.getArgument(0);
-                    return new CategoryDto(c.getId(), c.getName());
-                });
-        Page<CategoryDto> result = categoryServiceImpl.findAllPageable(pageable);
+        when(categoryMapper.toDto(c1)).thenReturn(new CategoryDto(1L, "A"));
+        when(categoryMapper.toDto(c2)).thenReturn(new CategoryDto(2L, "B"));
+
+        Page<CategoryDto> result = categoryServiceImpl.findAll(pageable);
 
         assertEquals(2, result.getContent().size());
         assertEquals("A", result.getContent().get(0).getName());
+        assertEquals("B", result.getContent().get(1).getName());
+    }
+
+
+    @Test
+    void findById_shouldReturnCategory() {
+        Category category = new Category(1L, "Flowers", List.of());
+
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(categoryMapper.toDto(category))
+                .thenReturn(new CategoryDto(1L, "Flowers"));
+
+        CategoryDto result = categoryServiceImpl.findById(1L);
+
+        assertEquals(1L, result.getId());
+        assertEquals("Flowers", result.getName());
+    }
+
+    @Test
+    void findById_shouldThrowException_whenNotFound() {
+        when(categoryRepository.findById(1L)).thenReturn(Optional.empty());
+
+        CategoryNotFoundException ex = assertThrows(
+                CategoryNotFoundException.class,
+                () -> categoryServiceImpl.findById(1L)
+        );
+
+        assertEquals("Category not found with 1 id", ex.getMessage());
     }
 
 
     @Test
     void findByName_shouldReturnCategory() {
-        Category category = new Category(1L, "A", List.of());
+        Category category = new Category(1L, "Roses", List.of());
 
+        when(categoryRepository.findByName("Roses"))
+                .thenReturn(Optional.of(category));
+        when(categoryMapper.toDto(category))
+                .thenReturn(new CategoryDto(1L, "Roses"));
 
-        when(categoryRepository.findByName(any())).thenReturn(Optional.of(category));
-        when(categoryMapper.toDto(category)).thenReturn(new CategoryDto(1L, "A"));
+        CategoryDto result = categoryServiceImpl.findByName("Roses");
 
-        CategoryDto result = categoryServiceImpl.findByName("A");
-
-        assertEquals("A", result.getName());
+        assertEquals("Roses", result.getName());
     }
 
     @Test
-    void findByName_shouldThrowException_whenCategoryNotFound() {
-        when(categoryRepository.findByName(any())).thenReturn(Optional.empty());
+    void findByName_shouldThrowException_whenNotFound() {
+        when(categoryRepository.findByName("Roses"))
+                .thenReturn(Optional.empty());
 
-        assertThrows(CategoryNotFoundException.class, () -> categoryServiceImpl.findByName("A"));
+        CategoryNotFoundException ex = assertThrows(
+                CategoryNotFoundException.class,
+                () -> categoryServiceImpl.findByName("Roses")
+        );
+
+        assertEquals("Category not found with  name Roses", ex.getMessage());
     }
 
+
     @Test
-    void save_shouldReturnCategory() {
-        SaveCategoryRequest request = new SaveCategoryRequest();
-        request.setName("A");
+    void save_shouldCreateCategory() {
+        SaveCategoryRequest request = new SaveCategoryRequest("Tulips");
 
-        Category category = new Category(1L, "A", List.of());
+        Category category = new Category(1L, "Tulips", List.of());
 
-        when(categoryMapper.toEntity(any(SaveCategoryRequest.class))).thenReturn(category);
-        when(categoryRepository.save(any(Category.class))).thenReturn(category);
-        when(categoryMapper.toDto(any(Category.class))).thenAnswer(inv -> {
-
-            Category c = inv.getArgument(0);
-            return new CategoryDto(c.getId(), c.getName());
-        });
+        when(categoryRepository.findByName("Tulips"))
+                .thenReturn(Optional.empty());
+        when(categoryMapper.toEntity(request)).thenReturn(category);
+        when(categoryRepository.save(category)).thenReturn(category);
+        when(categoryMapper.toDto(category))
+                .thenReturn(new CategoryDto(1L, "Tulips"));
 
         CategoryDto result = categoryServiceImpl.save(request);
 
         assertEquals(1L, result.getId());
-        assertEquals("A", category.getName());
+        assertEquals("Tulips", result.getName());
 
-        verify(categoryRepository).save(any(Category.class));
+        verify(categoryRepository).save(category);
     }
 
     @Test
-    void deleteById_shouldDeleteCategory() {
-        long id = 1L;
+    void save_shouldThrowException_whenCategoryAlreadyExists() {
+        SaveCategoryRequest request = new SaveCategoryRequest("Tulips");
 
-        Category category = new Category();
-        category.setId(id);
-        category.setProducts(Collections.emptyList());
+        when(categoryRepository.findByName("Tulips"))
+                .thenReturn(Optional.of(new Category()));
 
-        when(categoryRepository.findById(id))
-                .thenReturn(Optional.of(category));
+        CategoryAlreadyExistsException ex = assertThrows(
+                CategoryAlreadyExistsException.class,
+                () -> categoryServiceImpl.save(request)
+        );
 
-        categoryServiceImpl.deleteById(id);
-
-        verify(categoryRepository).deleteById(id);
+        assertEquals("Category with name Tulips already exists", ex.getMessage());
     }
 
-    @Test
-    void deleteById_shouldThrowExceptionIfCategoryNotFound() {
-        long id = 1L;
-
-        when(categoryRepository.findById(id)).thenReturn(Optional.empty());
-
-        CategoryNotFoundException exception = assertThrows(CategoryNotFoundException.class,
-                () -> categoryServiceImpl.deleteById(id));
-
-        assertEquals("Category not found with id 1", exception.getMessage());
-    }
 
     @Test
     void update_shouldUpdateCategory() {
         long id = 1L;
-
-        SaveCategoryRequest request = new SaveCategoryRequest("A");
-        request.setName("Updated");
+        SaveCategoryRequest request = new SaveCategoryRequest("Updated");
 
         Category existing = new Category(id, "Old", List.of());
 
-        Category updatedEntity = new Category(id, "Old", List.of());
-
-
-        when(categoryRepository.findById(id)).thenReturn(Optional.of(existing));
-        when(categoryRepository.save(existing)).thenReturn(updatedEntity);
-        when(categoryMapper.toDto(updatedEntity)).thenReturn(new CategoryDto(id, "Updated"));
+        when(categoryRepository.findById(id))
+                .thenReturn(Optional.of(existing));
+        when(categoryRepository.findByName("Updated"))
+                .thenReturn(Optional.empty());
+        when(categoryRepository.save(existing))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(categoryMapper.toDto(existing))
+                .thenReturn(new CategoryDto(id, "Updated"));
 
         CategoryDto result = categoryServiceImpl.update(id, request);
 
-        assertEquals(id, result.getId());
         assertEquals("Updated", result.getName());
-
-        verify(categoryRepository).findById(id);
         verify(categoryRepository).save(existing);
-        verify(categoryMapper).toDto(updatedEntity);
     }
 
     @Test
-    void update_shouldThrowExceptionIfCategoryNotFound() {
-        long id = 1L;
+    void update_shouldThrowException_whenCategoryNotFound() {
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.empty());
 
-        SaveCategoryRequest request = new SaveCategoryRequest();
-        request.setName("Anything");
-
-        when(categoryRepository.findById(id)).thenReturn(Optional.empty());
-
-        CategoryNotFoundException exception = assertThrows(
+        CategoryNotFoundException ex = assertThrows(
                 CategoryNotFoundException.class,
-                () -> categoryServiceImpl.update(id, request)
+                () -> categoryServiceImpl.update(1L, new SaveCategoryRequest("Any"))
         );
 
-        assertEquals("Category not found with 1 id", exception.getMessage());
+        assertEquals("Category not found with id 1", ex.getMessage());
+    }
+
+
+    @Test
+    void deleteById_shouldDeleteCategory() {
+        Category category = new Category(1L, "Flowers", Collections.emptyList());
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        categoryServiceImpl.deleteById(1L);
+
+        verify(categoryRepository).deleteById(1L);
+    }
+
+    @Test
+    void deleteById_shouldThrowException_whenCategoryHasProducts() {
+        Product product = new Product();
+        Category category = new Category(
+                1L,
+                "Flowers",
+                List.of(product)
+        );
+
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.of(category));
+
+        CategoryHasProductsException ex = assertThrows(
+                CategoryHasProductsException.class,
+                () -> categoryServiceImpl.deleteById(1L)
+        );
+
+        assertEquals(
+                "Cannot delete category because it has products. Remove or reassign them first.",
+                ex.getMessage()
+        );
+
+        verify(categoryRepository, never()).deleteById(anyLong());
+    }
+
+    @Test
+    void deleteById_shouldThrowException_whenNotFound() {
+        when(categoryRepository.findById(1L))
+                .thenReturn(Optional.empty());
+
+        CategoryNotFoundException ex = assertThrows(
+                CategoryNotFoundException.class,
+                () -> categoryServiceImpl.deleteById(1L)
+        );
+
+        assertEquals("Category not found with id 1", ex.getMessage());
     }
 }
